@@ -219,7 +219,6 @@ is
       end loop;
 
       Output := Hashing.Hash_256 (OPad & Hashing.Hash_256 (IPad & M));
-      pragma Assert (Output'Initialized);
    end HMAC_SHA_256;
 
 end SPARKNaCl.MAC;
