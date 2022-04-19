@@ -12,7 +12,7 @@ is
       return ret;
    end To_Byte_Seq;
 
-   --  Test vectors from RFC 4231
+   --  Test vectors from RFC 4231 Section 4
    --  https://www.rfc-editor.org/rfc/rfc4231.html
 
    Key1  : constant Byte_Seq (0 .. 19) := (others => 16#0b#);
@@ -32,9 +32,9 @@ is
    --  combined length of key and data larger than 64 bytes
 
    Key4  : constant Byte_Seq (0 .. 24) := (
-      16#01#, 16#02#, 16#03#, 16#04#, 16#05#, 16#06#, 16#07#, 16#08#, 
+      16#01#, 16#02#, 16#03#, 16#04#, 16#05#, 16#06#, 16#07#, 16#08#,
       16#09#, 16#0a#, 16#0b#, 16#0c#, 16#0d#, 16#0e#, 16#0f#, 16#10#,
-      16#11#, 16#12#, 16#13#, 16#14#, 16#15#, 16#16#, 16#17#, 16#18#, 
+      16#11#, 16#12#, 16#13#, 16#14#, 16#15#, 16#16#, 16#17#, 16#18#,
       16#19#
    );
 
@@ -65,24 +65,24 @@ is
 begin
 
    HMAC_SHA_256 (D, Data1, Key1);
-   DH ("D1 is", D);
+   DH ("RFC 4231, Section 4.2, Test Case 1, D is", D);
 
    HMAC_SHA_256 (D, Data2, Key2);
-   DH ("D2 is", D);
+   DH ("RFC 4231, Section 4.3, Test Case 2, D is", D);
 
    HMAC_SHA_256 (D, Data3, Key3);
-   DH ("D3 is", D);
-   
+   DH ("RFC 4231, Section 4.4, Test Case 3, D is", D);
+
    HMAC_SHA_256 (D, Data4, Key4);
-   DH ("D4 is", D);
+   DH ("RFC 4231, Section 4.5, Test Case 4, D is", D);
 
    HMAC_SHA_256 (D, Data5, Key5);
-   DH ("D5 is", D (0 .. 15));
-   
+   DH ("RFC 4231, Section 4.6, Test Case 5, D is", D (0 .. 15));
+
    HMAC_SHA_256 (D, Data6, Key6);
-   DH ("D6 is", D);
-   
+   DH ("RFC 4231, Section 4.7, Test Case 6, D is", D);
+
    HMAC_SHA_256 (D, Data7, Key7);
-   DH ("D7 is", D);
+   DH ("RFC 4231, Section 4.8, Test Case 7, D is", D);
 
 end HMAC;
