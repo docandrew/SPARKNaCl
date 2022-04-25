@@ -27,9 +27,8 @@ is
       Ti : Bytes_32;    -- T (I - 1)
       Tj : Bytes_32;    -- T (I)
       OKM_Block : N32 := 0;
-      tmp : constant Byte_Seq := Info & Byte (1);
    begin
-      MAC.HMAC_SHA_256 (Ti, tmp, PRK);
+      MAC.HMAC_SHA_256 (Ti, Info & Byte (1), PRK);
 
       for J in Index_32'Range loop
          OKM (J) := Ti (J);

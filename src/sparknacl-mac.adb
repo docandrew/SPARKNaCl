@@ -1,5 +1,3 @@
---  with Ada.Text_IO;
---  with SPARKNaCl.Debug; use SPARKNaCl.Debug;
 package body SPARKNaCl.MAC
   with SPARK_Mode => On
 is
