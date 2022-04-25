@@ -75,8 +75,9 @@ is
    Client_Handshake_IV  : OKM_256 (0 .. 11);
    Server_Handshake_IV  : OKM_256 (0 .. 11);
 
-   Client_IV_Counter    : U64;
-   Server_IV_Counter    : U64;
+   Counter              : U32  := 1;
+   Client_IV_Counter    : Byte := 0;
+   Server_IV_Counter    : Byte := 0;
 
    --------------------------------------------------------
    --  Conversion of TLS 1.3 2-byte size fields
@@ -97,6 +98,36 @@ is
    end DL16;
 
    --------------------------------------------------------
+   --  Update Nonce - every time we use an IV, we xor it
+   --  with the number of times it has been used.
+   --------------------------------------------------------
+   function Update_Server_Nonce (N : in ChaCha20_IETF_Nonce) 
+      return ChaCha20_IETF_Nonce
+   is
+      ret : ChaCha20_IETF_Nonce;
+   begin
+      for I in N'Range loop
+         ret (I) := N (I) xor Server_IV_Counter;
+      end loop;
+
+      Server_IV_Counter := Server_IV_Counter + 1;
+      return ret;
+   end Update_Server_Nonce;
+
+   function Update_Client_Nonce (N : in ChaCha20_IETF_Nonce) 
+      return ChaCha20_IETF_Nonce
+   is
+      ret : ChaCha20_IETF_Nonce;
+   begin
+      for I in N'Range loop
+         ret (I) := N (I) xor Client_IV_Counter;
+      end loop;
+
+      Client_IV_Counter := Client_IV_Counter + 1;
+      return ret;
+   end Update_Client_Nonce;
+
+   --------------------------------------------------------
    --  HKDF-Expand-Label as defined in RFC 8446
    --------------------------------------------------------
    procedure Expand_Label (OKM     : out OKM_256;
@@ -111,7 +142,6 @@ is
          Byte (Context'Length) &
          Context;
    begin
-      DH ("HKDF_Label: ", HKDF_Label);
       Expand (OKM, PRK, HKDF_Label);
    end Expand_Label;
 
@@ -312,73 +342,12 @@ is
    Server_Change_Cipher_Buffer : Byte_Seq (0 .. 5);
    Server_Wrapper_Header : Byte_Seq (0 .. 4);
 
-   Test_Handshake_Secret : Digest_256;
-   Test_CSecret : OKM_256 (0 .. 31);
-   Test_Hello_Hash : Digest_256;
-
-   Test_Hash_256 : Digest_256;
-   Test_Hash_512 : Digest_512;
+   --  Keys/IVs for en/de-crypting handshake messages
+   -- Decrypt_Key   : ChaCha20_Key;
+   -- Decrypt_Nonce : ChaCha20_IETF_Nonce;
+   -- Encrypt_Key   : ChaCha20_Key;
+   -- Encrypt_Nonce : ChaCha20_IETF_Nonce;
 begin
-
-   -- Test_Handshake_Secret := (
-   --    16#fb#, 16#9f#, 16#c8#, 16#06#, 16#89#, 16#b3#, 16#a5#, 16#d0#, 
-   --    16#2c#, 16#33#, 16#24#, 16#3b#, 16#f6#, 16#9a#, 16#1b#, 16#1b#, 
-   --    16#20#, 16#70#, 16#55#, 16#88#, 16#a7#, 16#94#, 16#30#, 16#4a#, 
-   --    16#6e#, 16#71#, 16#20#, 16#15#, 16#5e#, 16#df#, 16#14#, 16#9a#
-   -- );
-
-   -- Test_Hello_Hash := (
-   --    16#da#, 16#75#, 16#ce#, 16#11#, 16#39#, 16#ac#, 16#80#, 16#da#, 
-   --    16#e4#, 16#04#, 16#4d#, 16#a9#, 16#32#, 16#35#, 16#0c#, 16#f6#, 
-   --    16#5c#, 16#97#, 16#cc#, 16#c9#, 16#e3#, 16#3f#, 16#1e#, 16#6f#, 
-   --    16#7d#, 16#2d#, 16#4b#, 16#18#, 16#b7#, 16#36#, 16#ff#, 16#d5#
-   -- );
-
-   -- Expand_Label (OKM     => Test_CSecret,
-   --               PRK     => Test_Handshake_Secret,
-   --               Label   => "c hs traffic",
-   --               Context => Test_Hello_Hash);
-
-   Hashing.Hash_256 (Test_Hash_256, (
-      16#2B#, 16#FE#, 16#10#, 16#DF#, 16#00#, 16#30#, 16#9C#, 16#59#,
-      16#EA#, 16#3C#, 16#9B#, 16#F7#, 16#19#, 16#42#, 16#2D#, 16#37#,
-      16#32#, 16#5C#, 16#90#, 16#8F#, 16#A9#, 16#5F#, 16#28#, 16#E4#,
-      16#17#, 16#9F#, 16#C6#, 16#FC#, 16#32#, 16#09#, 16#88#, 16#9A#,
-      16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#,
-      16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#,
-      16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#,
-      16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#, 16#36#,
-      16#00#, 16#20#, 16#12#, 16#74#, 16#6C#, 16#73#, 16#31#, 16#33#,
-      16#20#, 16#63#, 16#20#, 16#68#, 16#73#, 16#20#, 16#74#, 16#72#,
-      16#61#, 16#66#, 16#66#, 16#69#, 16#63#, 16#20#, 16#86#, 16#0C#,
-      16#06#, 16#ED#, 16#C0#, 16#78#, 16#58#, 16#EE#, 16#8E#, 16#78#,
-      16#F0#, 16#E7#, 16#42#, 16#8C#, 16#58#, 16#ED#, 16#D6#, 16#B4#,
-      16#3F#, 16#2C#, 16#A3#, 16#E6#, 16#E9#, 16#5F#, 16#02#, 16#ED#,
-      16#06#, 16#3C#, 16#F0#, 16#E1#, 16#CA#, 16#D8#, 16#01#, 16#01#
-   ));
-
-   DH ("Test_Hash_256:", Test_Hash_256);
-
-   HMAC_SHA_256 (Byte_Seq (Test_CSecret),
-   (
-      16#00#, 16#20#, 16#12#, 16#74#, 16#6c#, 16#73#, 16#31#, 16#33#, 
-      16#20#, 16#63#, 16#20#, 16#68#, 16#73#, 16#20#, 16#74#, 16#72#, 
-      16#61#, 16#66#, 16#66#, 16#69#, 16#63#, 16#20#, 16#86#, 16#0c#, 
-      16#06#, 16#ed#, 16#c0#, 16#78#, 16#58#, 16#ee#, 16#8e#, 16#78#, 
-      16#f0#, 16#e7#, 16#42#, 16#8c#, 16#58#, 16#ed#, 16#d6#, 16#b4#, 
-      16#3f#, 16#2c#, 16#a3#, 16#e6#, 16#e9#, 16#5f#, 16#02#, 16#ed#, 
-      16#06#, 16#3c#, 16#f0#, 16#e1#, 16#ca#, 16#d8#, 16#01#
-    ),
-    (
-      16#1d#, 16#c8#, 16#26#, 16#e9#, 16#36#, 16#06#, 16#aa#, 16#6f#, 
-      16#dc#, 16#0a#, 16#ad#, 16#c1#, 16#2f#, 16#74#, 16#1b#, 16#01#, 
-      16#04#, 16#6a#, 16#a6#, 16#b9#, 16#9f#, 16#69#, 16#1e#, 16#d2#, 
-      16#21#, 16#a9#, 16#f0#, 16#ca#, 16#04#, 16#3f#, 16#be#, 16#ac#
-   ));
-
-   DH ("CSecret", Byte_Seq (Test_CSecret));
-
-   return;
 
    SPARKNaCl.Cryptobox.Keypair (Raw_SK, PK, SK);
 
@@ -426,7 +395,7 @@ begin
       Byte_Seq'Read (Channel,
          Server_Hello_Buffer (5 .. 5 + Integer_32 (Read_Len) - 1));
 
-      DH ("Handshake Message:",
+      DH ("Server Hello (Full Record):",
          Server_Hello_Buffer (0 .. 5 + Integer_32 (Read_Len) - 1));
 
       Parse_Server_Hello (
@@ -507,46 +476,80 @@ begin
       Byte_Seq'Read (Channel, Server_Change_Cipher_Buffer);
       DH ("Read Server Change Cipher Spec:", Server_Change_Cipher_Buffer);
 
-      --  Read encrypted wrapper
-      Byte_Seq'Read (Channel, Server_Wrapper_Header);
-      DH ("Read Server Wrapper Header:", Server_Wrapper_Header);
-      Put_Line (" Encrypted Message Size:" & DL16 (Server_Wrapper_Header (3 .. 4))'Image);
+      Get_Server_Handshake : loop
+         --  Read encrypted wrapper
+         Byte_Seq'Read (Channel, Server_Wrapper_Header);
+         DH ("Read Server Wrapper Header:", Server_Wrapper_Header);
+         Put_Line (" Encrypted Message Size:" & DL16 (Server_Wrapper_Header (3 .. 4))'Image);
 
-      declare
-         Encrypted_Size  : N32 := N32 (DL16 (Server_Wrapper_Header (3 .. 4)));
+         declare
+            Decrypt_Key   : ChaCha20_Key        
+               := Construct (Byte_Seq (Server_Handshake_Key));
+            Decrypt_Nonce : ChaCha20_IETF_Nonce 
+               := ChaCha20_IETF_Nonce (Server_Handshake_IV);
 
-         --  Subtract 16 bytes from message size for the tag.
-         Encrypted_Msg   : Byte_Seq (0 .. Encrypted_Size - 16 - 1);
-         Decrypted_Msg   : Byte_Seq (0 .. Encrypted_Size - 16 - 1);
-         Tag             : Bytes_16;
-         Valid           : Boolean;
+            Encrypt_Key   : ChaCha20_Key 
+               := Construct (Byte_Seq (Client_Handshake_Key));
+            Encrypt_Nonce : ChaCha20_IETF_Nonce 
+               := ChaCha20_IETF_Nonce (Client_Handshake_IV);
 
-         Handshake_Key   : ChaCha20_Key
-            := Construct (Byte_Seq (Server_Handshake_Key));
-         
-         Handshake_Nonce : ChaCha20_IETF_Nonce
-            := ChaCha20_IETF_Nonce (Server_Handshake_IV);
+            Encrypted_Size  : N32 := N32 (DL16 (Server_Wrapper_Header (3 .. 4)));
 
-      begin
-         Byte_Seq'Read (Channel, Encrypted_Msg);
-         Byte_Seq'Read (Channel, Tag);
+            --  Subtract 16 bytes from message size for the tag.
+            Encrypted_Msg   : Byte_Seq (0 .. Encrypted_Size - 16 - 1);
+            Decrypted_Msg   : Byte_Seq (0 .. Encrypted_Size - 16 - 1);
+            Tag             : Bytes_16;
+            Valid           : Boolean;
 
-         DH (" Encrypted Msg:", Encrypted_Msg);
-         DH (" Tag:", Tag);
+            Msg_Type    : Byte;
+            Msg_Size    : U16;
+            Record_Type : Byte;
+         begin
+            Byte_Seq'Read (Channel, Encrypted_Msg);
+            Byte_Seq'Read (Channel, Tag);
 
-         --  Decrypt with Server Handshake Key and IV
-         Secretbox.Open (M       => Decrypted_Msg,
-                         Status  => Valid,
-                         Tag     => Tag,
-                         C       => Encrypted_Msg,
-                         N       => Handshake_Nonce,
-                         K       => Handshake_Key,
-                         AAD     => Server_Wrapper_Header,
-                         Counter => 0);
+            DH (" Encrypted Msg:", Encrypted_Msg);
+            DH (" Tag:", Tag);
 
-         Put_Line ("Valid? " & Valid'Image);
-         DH (" Decrypted Msg:", Decrypted_Msg);
-      end;
+            --  Decrypt with Server Handshake Key and IV
+            Secretbox.Open (M       => Decrypted_Msg,
+                            Status  => Valid,
+                            Tag     => Tag,
+                            C       => Encrypted_Msg,
+                            N       => Update_Server_Nonce (Decrypt_Nonce),
+                            K       => Decrypt_Key,
+                            AAD     => Server_Wrapper_Header,
+                            Counter => Counter);
+            
+            Counter := Counter + 1;
+
+            Put_Line ("Valid? " & Valid'Image);
+            DH (" Decrypted Msg:", Decrypted_Msg);
+
+            --  For the encrypted 1.3 records, the last byte is the actual record
+            --  type.
+            Msg_Type    := Decrypted_Msg (0);
+            Msg_Size    := DL16 (Decrypted_Msg (2 .. 3));
+            Record_Type := Decrypted_Msg (Decrypted_Msg'Last);
+
+            Put_Line ("  Msg Type:    " & Msg_Type'Image);
+            Put_Line ("  Msg Size:    " & Msg_Size'Image);
+            Put_Line ("  Record_Type: " & Record_Type'Image);
+
+            if Msg_Type = 16#08# then
+               --  Skip the last byte, since it's the record type.
+               --  Parse_Encypted_Extensions (Decrypted_Msg (4 .. Decrypted_Msg'Last - 1));
+               Put_Line ("  Encrypted Extensions");
+            elsif Msg_Type = 16#0B# then
+               Put_Line ("  Server Certificate");
+            elsif Msg_Type = 16#14# then
+               --  Server Handshake Finished
+               Put_Line ("  Server Handshake Finished");
+               exit Get_Server_Handshake;
+            end if;
+         end;
+
+      end loop Get_Server_Handshake;
    end;
 
 exception

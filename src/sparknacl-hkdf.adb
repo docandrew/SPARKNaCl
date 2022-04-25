@@ -38,7 +38,6 @@ is
          end if;
       end loop;
 
-
       for I in 2 .. N loop
          MAC.HMAC_SHA_256 (Tj, Ti & Info & Byte (I), PRK);
          OKM_Block := (I - 1) * 32;
