@@ -104,11 +104,9 @@ is
    function Update_Server_Nonce (N : in ChaCha20_IETF_Nonce) 
       return ChaCha20_IETF_Nonce
    is
-      ret : ChaCha20_IETF_Nonce;
+      ret : ChaCha20_IETF_Nonce := N;
    begin
-      for I in N'Range loop
-         ret (I) := N (I) xor Server_IV_Counter;
-      end loop;
+      ret (ret'Last) := N (N'Last) xor Server_IV_Counter;
 
       Server_IV_Counter := Server_IV_Counter + 1;
       return ret;
@@ -117,11 +115,9 @@ is
    function Update_Client_Nonce (N : in ChaCha20_IETF_Nonce) 
       return ChaCha20_IETF_Nonce
    is
-      ret : ChaCha20_IETF_Nonce;
+      ret : ChaCha20_IETF_Nonce := N;
    begin
-      for I in N'Range loop
-         ret (I) := N (I) xor Client_IV_Counter;
-      end loop;
+      ret (ret'Last) := N (N'Last) xor Client_IV_Counter;
 
       Client_IV_Counter := Client_IV_Counter + 1;
       return ret;
@@ -479,6 +475,8 @@ begin
       Get_Server_Handshake : loop
          --  Read encrypted wrapper
          Byte_Seq'Read (Channel, Server_Wrapper_Header);
+         Put_Line ("");
+         Put_Line ("-------------------------------");
          DH ("Read Server Wrapper Header:", Server_Wrapper_Header);
          Put_Line (" Encrypted Message Size:" & DL16 (Server_Wrapper_Header (3 .. 4))'Image);
 
@@ -519,9 +517,9 @@ begin
                             N       => Update_Server_Nonce (Decrypt_Nonce),
                             K       => Decrypt_Key,
                             AAD     => Server_Wrapper_Header,
-                            Counter => Counter);
+                            Counter => 1);
             
-            Counter := Counter + 1;
+            -- Counter := Counter + 1;
 
             Put_Line ("Valid? " & Valid'Image);
             DH (" Decrypted Msg:", Decrypted_Msg);
@@ -542,6 +540,8 @@ begin
                Put_Line ("  Encrypted Extensions");
             elsif Msg_Type = 16#0B# then
                Put_Line ("  Server Certificate");
+            elsif Msg_Type = 16#0F# then
+               Put_Line ("  Server Certificate Verify");
             elsif Msg_Type = 16#14# then
                --  Server Handshake Finished
                Put_Line ("  Server Handshake Finished");
