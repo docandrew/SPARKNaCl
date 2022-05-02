@@ -12,6 +12,8 @@ is
                       Salt : in     Byte_Seq) -- input salt (can be 0 bytes)
    is
    begin
+      --  In RFC 5869, the input keying material is used
+      --  as the _message_ parameter to HMAC.
       MAC.HMAC_SHA_256 (PRK, IKM, Salt);
    end Extract;
 
@@ -23,34 +25,34 @@ is
                      PRK  : in     Hashing.Digest_256; -- pseudo-random key
                      Info : in     Byte_Seq)   -- optional context
    is
-      N  : constant N32 := (OKM'Length + 31) / 32;
       Ti : Bytes_32;    -- T (I - 1)
       Tj : Bytes_32;    -- T (I)
-      OKM_Block : N32 := 0;
+      B  : Byte := 1;   -- Output block counter
    begin
-      MAC.HMAC_SHA_256 (Ti, Info & Byte (1), PRK);
+      MAC.HMAC_SHA_256 (Ti, Info & B, PRK);
 
-      for J in Index_32'Range loop
-         OKM (J) := Ti (J);
+      if OKM'Last <= Ti'Last then
+         --  Only need first T block to complete OKM
+         OKM (OKM'Range) := OKM_256 (Ti (OKM'Range));
+         pragma Assert (OKM'Initialized);
+         return;
+      else
+         --  OKM larger than hash len, fill the first hash len bytes of OKM
+         OKM (Ti'Range) := OKM_256 (Ti);
+      end if;
 
-         if J = OKM'Last then
-            return;
+      pragma Assert (OKM (0 .. 31)'Initialized);
+
+      for I in Hash_Len .. OKM'Last loop
+         if I mod Hash_Len = 0 then
+            --  generate new output block
+            B := B + 1;
+            MAC.HMAC_SHA_256 (Tj, Ti & Info & B, PRK);
+            Ti := Tj;
          end if;
-      end loop;
 
-      for I in 2 .. N loop
-         MAC.HMAC_SHA_256 (Tj, Ti & Info & Byte (I), PRK);
-         OKM_Block := (I - 1) * 32;
-
-         for J in Index_32'Range loop
-            OKM (OKM_Block + J) := Tj (J);
-
-            if OKM_Block + J = OKM'Last then
-               return;
-            end if;
-         end loop;
-
-         Ti := Tj;
+         OKM (I) := Ti (I mod Hash_Len);
+         pragma Loop_Invariant (OKM (0 .. I)'Initialized);
       end loop;
    end Expand;
 
